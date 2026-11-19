@@ -1,5 +1,7 @@
 # Lab 1: Procesador de archivos en S3 (Arquitectura orientada a eventos)
 
+![](./images/diagrama.png)  
+
 ## INTRODUCCION
 
 + **Lab 1: Procesador de archivos en S3 (Arquitectura orientada a eventos)**
