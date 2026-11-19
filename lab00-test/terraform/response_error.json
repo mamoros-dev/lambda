@@ -1,0 +1,1 @@
+{"errorMessage": "\u00a1Error cr\u00edtico simulado para probar la alarma de CloudWatch!", "errorType": "Exception", "requestId": "34d17e10-368e-489d-b0b7-446a44359836", "stackTrace": ["  File \"/var/task/lambda_function.py\", line 7, in lambda_handler\n    raise Exception(\"\u00a1Error cr\u00edtico simulado para probar la alarma de CloudWatch!\")\n"]}

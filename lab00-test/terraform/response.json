@@ -1,0 +1,1 @@
+{"statusCode": 200, "body": "{\"mensaje\": \"\\u00a1Hola, Miguel! Tu Lambda desplegada con Terraform funciona perfectamente.\", \"estado\": \"Exitoso\"}"}
