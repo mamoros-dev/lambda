@@ -1,5 +1,7 @@
 # LAMBDA
 
+![](./images/diagrama.png)  
+
 ## FASE 0: ¿Qué es AWS Lambda y cómo funciona?
 
 + **AWS Lambda** es un servicio de computación serverless (sin servidores) orientado a eventos.
