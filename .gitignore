@@ -47,6 +47,8 @@ service-account.json
 *.tfstate  
 .tfstate.  
 *.tfstate.backup  
+.lock.hcl
+*.lock.hcl
 
 # Crash log files  
 crash.log  
