@@ -1,0 +1,176 @@
+# ==========================================
+# 1. EMPAQUETADO DEL CÓDIGO Y LOGS (CLOUDWATCH)
+# ==========================================
+
+# Empaqueta scheduler_worker.py en scheduler_worker.zip para poder subirlo a AWS Lambda.
+data "archive_file" "scheduler_worker_zip" {
+  type        = "zip"
+  source_file = "${path.module}/scheduler_worker.py"
+  output_path = "${path.module}/scheduler_worker.zip"
+}
+
+# Crea el Log Group de CloudWatch de forma explícita antes de ejecutar la Lambda,
+# fijando la retención a 7 días para evitar acumular logs indefinidamente.
+resource "aws_cloudwatch_log_group" "scheduler_worker_logs" {
+  name              = "/aws/lambda/lab3-scheduler-worker"
+  retention_in_days = 1
+
+  tags = {
+    Laboratorio = "Lab3-EventBridge-Scheduler"
+  }
+}
+
+# ==========================================
+# 2. ROL IAM DE EJECUCIÓN DE LA LAMBDA
+# ==========================================
+
+# Trust Policy: permite que el servicio AWS Lambda (lambda.amazonaws.com) asuma este rol.
+data "aws_iam_policy_document" "lambda_assume_role" {
+  statement {
+    effect  = "Allow"
+    actions = ["sts:AssumeRole"]
+
+    principals {
+      type        = "Service"
+      identifiers = ["lambda.amazonaws.com"]
+    }
+  }
+}
+
+# Rol IAM que usará la función Lambda cuando se ejecute.
+resource "aws_iam_role" "lambda_exec_role" {
+  name               = "lab3-scheduler-worker-role"
+  assume_role_policy = data.aws_iam_policy_document.lambda_assume_role.json
+}
+
+# Documento de política con los permisos mínimos para crear grupos/flujos y escribir eventos de log.
+data "aws_iam_policy_document" "lambda_logs_doc" {
+  statement {
+    sid    = "CloudWatchLogsWrite"
+    effect = "Allow"
+    actions = [
+      "logs:CreateLogGroup",
+      "logs:CreateLogStream",
+      "logs:PutLogEvents"
+    ]
+    resources = ["arn:aws:logs:*:*:*"]
+  }
+}
+
+# Recurso de política IAM gestionada por Terraform a partir del documento anterior.
+resource "aws_iam_policy" "lambda_logs_policy" {
+  name        = "lab3-scheduler-worker-logs-policy"
+  description = "Permite a la función Lambda del Lab 3 escribir sus logs en CloudWatch"
+  policy      = data.aws_iam_policy_document.lambda_logs_doc.json
+}
+
+# Adjunta (asocia) la política de logs al rol de ejecución de la Lambda.
+resource "aws_iam_role_policy_attachment" "lambda_logs_attach" {
+  role       = aws_iam_role.lambda_exec_role.name
+  policy_arn = aws_iam_policy.lambda_logs_policy.arn
+}
+
+# ==========================================
+# 3. FUNCIÓN LAMBDA
+# ==========================================
+
+# Crea la función Lambda en Python 3.11 usando el .zip generado y el rol IAM de ejecución.
+resource "aws_lambda_function" "scheduler_worker" {
+  filename         = data.archive_file.scheduler_worker_zip.output_path
+  function_name    = "lab3-scheduler-worker"
+  role             = aws_iam_role.lambda_exec_role.arn
+  handler          = "scheduler_worker.lambda_handler"
+  source_code_hash = data.archive_file.scheduler_worker_zip.output_base64sha256
+  runtime          = "python3.11"
+  timeout          = 10
+
+  # Espera a que existan los permisos de logs y el Log Group antes de crear la función.
+  depends_on = [
+    aws_iam_role_policy_attachment.lambda_logs_attach,
+    aws_cloudwatch_log_group.scheduler_worker_logs
+  ]
+}
+
+# ==========================================
+# 4. EVENTBRIDGE SCHEDULER (PROGRAMACIÓN CADA 5 MIN)
+# ==========================================
+
+# Trust Policy para EventBridge Scheduler: permite que scheduler.amazonaws.com asuma este rol
+# para poder invocar nuestro destino (la función Lambda).
+data "aws_iam_policy_document" "scheduler_assume_role" {
+  statement {
+    effect  = "Allow"
+    actions = ["sts:AssumeRole"]
+
+    principals {
+      type        = "Service"
+      identifiers = ["scheduler.amazonaws.com"]
+    }
+  }
+}
+
+# Rol IAM que utilizará EventBridge Scheduler cuando llegue la hora de disparar la tarea.
+resource "aws_iam_role" "scheduler_invoke_role" {
+  name               = "lab3-eventbridge-scheduler-role"
+  assume_role_policy = data.aws_iam_policy_document.scheduler_assume_role.json
+}
+
+# Política de mínimo privilegio: solo permite llamar a lambda:InvokeFunction sobre el ARN
+# exacto de nuestra función lab3-scheduler-worker.
+data "aws_iam_policy_document" "scheduler_invoke_lambda_doc" {
+  statement {
+    sid       = "InvokeSchedulerWorkerLambdaOnly"
+    effect    = "Allow"
+    actions   = ["lambda:InvokeFunction"]
+    resources = [aws_lambda_function.scheduler_worker.arn]
+  }
+}
+
+# Crea la política IAM de invocación de la Lambda.
+resource "aws_iam_policy" "scheduler_invoke_lambda_policy" {
+  name        = "lab3-scheduler-invoke-lambda-policy"
+  description = "Permite a EventBridge Scheduler invocar únicamente lab3-scheduler-worker"
+  policy      = data.aws_iam_policy_document.scheduler_invoke_lambda_doc.json
+}
+
+# Adjunta la política de invocación al rol del scheduler.
+resource "aws_iam_role_policy_attachment" "scheduler_invoke_lambda_attach" {
+  role       = aws_iam_role.scheduler_invoke_role.name
+  policy_arn = aws_iam_policy.scheduler_invoke_lambda_policy.arn
+}
+
+# Programación recurrente en EventBridge Scheduler: ejecuta cada 5 minutos sin ventana flexible
+# y envía un JSON de entrada (input) a la función Lambda.
+resource "aws_scheduler_schedule" "every_5_minutes" {
+  name       = "lab3-every-5-minutes"
+  group_name = "default"
+
+  # mode = "OFF" significa que se ejecute lo más cerca posible del horario exacto sin retraso extra.
+  flexible_time_window {
+    mode = "OFF"
+  }
+
+  # Expresión de frecuencia cada 5 minutos.
+  schedule_expression = "rate(5 minutes)" # "Cada 5 minutos, sin importar la hora exacta del reloj."
+  # schedule_expression = "rate(1 minute)"
+  # schedule_expression = "rate(1 hour)"
+  # schedule_expression          = "cron(0 9 * * ? *)" # minuto 0, hora 9, todos los días, todos los meses, cualquier día de la semana, cualquier año
+  # schedule_expression_timezone = "Europe/Madrid"
+
+
+  # Destino (target) a invocar: nuestra función Lambda usando el rol con permiso lambda:InvokeFunction.
+  target {
+    arn      = aws_lambda_function.scheduler_worker.arn
+    role_arn = aws_iam_role.scheduler_invoke_role.arn
+
+    # Payload JSON que recibirá el parámetro 'event' dentro de lambda_handler(event, context).
+    input = jsonencode({
+      source = "aws.scheduler.lab3"
+      tarea  = "health-check"
+      url    = "https://httpbin.org/get"
+    })
+  }
+
+  # Garantiza que el rol tenga adjunto el permiso de invocar la Lambda antes de crear la programación.
+  depends_on = [aws_iam_role_policy_attachment.scheduler_invoke_lambda_attach]
+}
