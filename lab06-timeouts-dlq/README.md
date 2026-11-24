@@ -1,5 +1,7 @@
 # Lab 6: Manejo de timeouts, reintentos y Dead Letter Queue (SQS)
 
+![](./images/diagrama.png)  
+
 + **Lab 6: Manejo de timeouts, reintentos y Dead Letter Queue (SQS)**
     - **Utilidad real:** Evitar que eventos fallidos o procesos lentos se pierdan en silencio cuando una dependencia externa falla o tarda más de lo esperado.
     - **Qué aprenderás:** Ajustar timeout y memory_size (y entender su impacto en CPU y coste), ver qué pasa con los reintentos automáticos en invocaciones asíncronas y enviar los mensajes fallidos a una cola SQS DLQ para su análisis posterior.
