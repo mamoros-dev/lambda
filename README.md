@@ -1,5 +1,8 @@
 # LAMBDA
 
+[![Terraform](https://img.shields.io/badge/Terraform-1.5+-844FBA?logo=terraform)](https://www.terraform.io/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 ## INTRODUCCION
 
 + Una **AWS Lambda** es una función de código que se ejecuta bajo demanda sin que tú tengas que aprovisionar, configurar ni mantener ningún servidor (por eso se llama Serverless o computación sin servidores).
@@ -46,3 +49,9 @@
 + **Lab 8: Capas (Lambda Layers) y empaquetado de dependencias externas**
     - **Utilidad real:** Reutilizar librerías de terceros (como requests o clientes específicos) o utilidades compartidas entre varias funciones sin duplicar código ni inflar cada despliegue.
     - **Qué aprenderás:** Crear y versionar un aws_lambda_layer_version, estructurar carpetas (python/ para Python) y decidir cuándo usar una Layer, empaquetar dependencias en el .zip o pasar a un contenedor Docker en ECR.
+
+![](./images/resumen.png)  
+![](./images/resumen2.png)  
+
+## Author
++ Miguel — [GitHub](https://github.com/mamoros-dev) · [LinkedIn](https://www.linkedin.com/in/miguel-amoros-moret/)
